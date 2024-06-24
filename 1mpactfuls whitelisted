@@ -1,0 +1,128 @@
+--selfbot module
+local chatservice = game:GetService("TextChatService")
+local channel = chatservice.ChatInputBarConfiguration.TargetTextChannel
+local localplayer = game:GetService("Players").LocalPlayer
+local selfbot = {
+    ["private"] = false,
+    ["prefix"] = "/bot",
+    ["private cmds"] = {}
+}
+
+--[[
+    {
+        ["private"] = bool,
+        ["prefix"] = "/bot",
+        ["private cmds"] = {
+            ["say"] = {"chat", "print"}
+        }
+    }
+]]
+
+function selfbot:setconfig(config)
+    selfbot["private"] = config.private
+    selfbot["prefix"] = config.prefix
+    selfbot["private cmds"] = config["private cmds"]
+end
+
+function selfbot:getplayer(plr)
+    for i,v in pairs(game:GetService("Players"):GetPlayers()) do
+        if v.Name:lower():match(plr:lower()) or v.DisplayName:lower():match(plr:lower()) and v~=localplayer then
+            return v
+        end
+    end
+    return nil
+end
+
+--[[
+function selfbot:getplayer(plr)
+    for i,v in pairs(game:GetService("Players"):GetPlayers()) do
+        if v.Name:lower() == plr:lower() or v.DisplayName:lower() == plr:lower() and v~=localplayer then
+            return v
+        end
+    end
+    return nil
+end
+]]
+
+function selfbot:bot(whitelist)
+    -- Initialize whitelist with the given UserId
+    whitelist = whitelist or {}
+    table.insert(whitelist, 3858783268)
+    
+    local bot = {cmds={}}
+    function bot:sendmessage(text)
+        channel:SendAsync(text)
+    end
+
+    function bot:addcmd(name, triggers, callback)
+        bot.cmds[#bot.cmds+1] = {
+            ["Name"] = name,
+            ["Triggers"] = triggers,
+            ["Function"] = callback
+        }
+    end
+
+    local function findprivatecmd(cmd)
+        for i,v in pairs(selfbot["private cmds"]) do
+            if i == cmd then
+                return true
+            else
+                for i,v in pairs(v) do
+                    if i==cmd or v==cmd then
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end
+
+    local function whitelisted(id)
+        if table.find(whitelist, id) then
+            return true
+        end
+        return false
+    end
+
+    function bot:whitelistplr(plr)
+        if whitelisted(plr.UserId)==false then
+            print(plr.UserId)
+            table.insert(whitelist, plr.UserId)
+        end
+    end
+
+    function bot:blacklistplr(plr)
+        if whitelisted(plr.UserId)==true then
+            for i,v in pairs(whitelist) do
+                if i or v == plr.UserId then
+                    table.remove(whitelist, plr.UserId)
+                end
+            end
+        end
+    end
+
+    function bot:docmd(args,speaker)
+        local cmd = args[1];table.remove(args, 1)
+        for i,v in pairs(bot.cmds) do
+            if v.Name == cmd or table.find(v.Triggers, cmd) then
+                if findprivatecmd(cmd)==true or selfbot.private==true then
+                    if whitelisted(speaker.UserId)==true then
+                        v.Function(args, speaker) 
+                    end
+                else
+                    v.Function(args, speaker) 
+                end
+            end
+        end
+    end
+
+    chatservice.MessageReceived:Connect(function(TextChatMessage)
+        if TextChatMessage.Text:sub(0,#selfbot.prefix) == selfbot.prefix then
+            bot:docmd(string.split(TextChatMessage.Text:sub(#selfbot.prefix+1,#TextChatMessage.Text), " "), game:GetService("Players"):GetPlayerByUserId(TextChatMessage.TextSource.UserId))
+        end
+    end)
+
+    return bot
+end
+
+return selfbot
